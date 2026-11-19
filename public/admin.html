@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maintenance Dashboard - Campus Complaint Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-slate-800 text-white shadow">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold">Maintenance Staff Dashboard</h1>
+        <p class="text-slate-300 text-sm">Review, update and close campus complaints</p>
+      </div>
+      <a href="index.html"
+         class="inline-block bg-white text-slate-800 font-semibold text-sm px-4 py-2 rounded-lg hover:bg-slate-100 transition text-center">
+        &larr; Back to Student &amp; Staff Portal
+      </a>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-8 space-y-6">
+
+    <!-- Summary bar -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Complaint summary">
+      <div class="bg-white rounded-xl shadow p-4 border-l-4 border-slate-500">
+        <p class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Total Issues</p>
+        <p id="countTotal" class="text-3xl font-bold mt-1">0</p>
+      </div>
+      <div class="bg-white rounded-xl shadow p-4 border-l-4 border-yellow-400">
+        <p class="text-xs uppercase tracking-wide text-yellow-700 font-semibold">Pending</p>
+        <p id="countPending" class="text-3xl font-bold mt-1">0</p>
+      </div>
+      <div class="bg-white rounded-xl shadow p-4 border-l-4 border-blue-500">
+        <p class="text-xs uppercase tracking-wide text-blue-700 font-semibold">In Progress</p>
+        <p id="countProgress" class="text-3xl font-bold mt-1">0</p>
+      </div>
+      <div class="bg-white rounded-xl shadow p-4 border-l-4 border-green-500">
+        <p class="text-xs uppercase tracking-wide text-green-700 font-semibold">Resolved</p>
+        <p id="countResolved" class="text-3xl font-bold mt-1">0</p>
+      </div>
+    </section>
+
+    <!-- Filters -->
+    <section class="bg-white rounded-xl shadow p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div class="flex flex-wrap gap-2">
+        <select id="filterStatus" aria-label="Filter by status"
+                class="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">All Statuses</option>
+          <option value="Pending">Pending</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Resolved">Resolved</option>
+        </select>
+        <select id="filterCategory" aria-label="Filter by category"
+                class="border border-slate-300 rounded-lg px-3 py-2 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="">All Categories</option>
+          <option value="Broken Lights">Broken Lights</option>
+          <option value="Plumbing">Plumbing</option>
+          <option value="Lab Fault">Lab Fault</option>
+          <option value="Other">Other</option>
+        </select>
+        <button type="button" id="clearFilters"
+                class="border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm hover:bg-slate-100">
+          Clear Filters
+        </button>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="showingText" class="text-sm text-slate-500"></span>
+        <button type="button" id="refreshBtn"
+                class="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-indigo-700">
+          Refresh
+        </button>
+      </div>
+    </section>
+
+    <!-- Table -->
+    <section class="bg-white rounded-xl shadow overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[960px] text-sm text-left">
+          <thead class="bg-slate-100 text-slate-600 uppercase text-xs">
+            <tr>
+              <th class="px-4 py-3 font-semibold">Reporter</th>
+              <th class="px-4 py-3 font-semibold">Location &amp; Category</th>
+              <th class="px-4 py-3 font-semibold">Issue</th>
+              <th class="px-4 py-3 font-semibold">Photo</th>
+              <th class="px-4 py-3 font-semibold w-72">Manage</th>
+            </tr>
+          </thead>
+          <tbody id="complaintRows" class="divide-y divide-slate-200"></tbody>
+        </table>
+      </div>
+      <div id="tableState" class="hidden text-center text-slate-500 py-12"></div>
+    </section>
+  </main>
+
+  <!-- Image modal -->
+  <div id="imageModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Photo preview">
+    <div class="relative max-w-4xl w-full flex flex-col items-center">
+      <button type="button" id="closeModal"
+              class="absolute -top-3 -right-3 bg-white text-slate-800 rounded-full w-9 h-9 text-xl font-bold shadow hover:bg-slate-100"
+              aria-label="Close preview">&times;</button>
+      <img id="modalImg" alt="Complaint photo" class="max-h-[80vh] max-w-full rounded-lg shadow-lg" />
+      <a id="modalLink" href="#" target="_blank" rel="noopener"
+         class="mt-3 text-sm text-white underline hover:text-slate-200">Open full size in new tab</a>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed bottom-5 right-5 z-50 max-w-sm rounded-lg px-4 py-3 text-sm shadow-lg" role="status"></div>
+
+  <script>
+    const STATUS_STYLES = {
+      'Pending': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+      'In Progress': 'bg-blue-100 text-blue-800 border-blue-300',
+      'Resolved': 'bg-green-100 text-green-800 border-green-300'
+    };
+    const STATUSES = ['Pending', 'In Progress', 'Resolved'];
+
+    const tbody = document.getElementById('complaintRows');
+    const tableState = document.getElementById('tableState');
+    const filterStatus = document.getElementById('filterStatus');
+    const filterCategory = document.getElementById('filterCategory');
+    const clearFiltersBtn = document.getElementById('clearFilters');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const showingText = document.getElementById('showingText');
+    const imageModal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImg');
+    const modalLink = document.getElementById('modalLink');
+    const closeModalBtn = document.getElementById('closeModal');
+    const toast = document.getElementById('toast');
+
+    let allComplaints = [];
+    let toastTimer = null;
+
+    // ----- Helpers -----
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(sqliteDate) {
+      if (!sqliteDate) return '';
+      const date = new Date(sqliteDate.replace(' ', 'T') + 'Z');
+      if (isNaN(date.getTime())) return sqliteDate;
+      return date.toLocaleString(undefined, {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function showToast(text, type) {
+      clearTimeout(toastTimer);
+      toast.textContent = text;
+      toast.className = 'fixed bottom-5 right-5 z-50 max-w-sm rounded-lg px-4 py-3 text-sm shadow-lg ' +
+        (type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white');
+      toastTimer = setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+
+    async function apiRequest(url, options) {
+      const response = await fetch(url, options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const details = Array.isArray(data.details) ? ' ' + data.details.join(' ') : '';
+        throw new Error((data.error || 'Request failed.') + details);
+      }
+      return data;
+    }
+
+    function matchesFilters(c) {
+      return (!filterStatus.value || c.status === filterStatus.value) &&
+             (!filterCategory.value || c.category === filterCategory.value);
+    }
+
+    // ----- Summary + state -----
+    function updateCounts() {
+      const count = (status) => allComplaints.filter((c) => c.status === status).length;
+      document.getElementById('countTotal').textContent = allComplaints.length;
+      document.getElementById('countPending').textContent = count('Pending');
+      document.getElementById('countProgress').textContent = count('In Progress');
+      document.getElementById('countResolved').textContent = count('Resolved');
+    }
+
+    function updateTableState() {
+      const visible = allComplaints.filter(matchesFilters).length;
+      showingText.textContent = `Showing ${visible} of ${allComplaints.length}`;
+      if (visible === 0) {
+        tableState.textContent = allComplaints.length === 0
+          ? 'No complaints have been reported yet.'
+          : 'No complaints match the selected filters.';
+        tableState.classList.remove('hidden');
+      } else {
+        tableState.classList.add('hidden');
+      }
+    }
+
+    // ----- Rendering -----
+    function renderRow(c) {
+      const statusClass = STATUS_STYLES[c.status] || 'bg-slate-100 text-slate-700 border-slate-300';
+      const photoHtml = c.photo_path
+        ? `<button type="button" data-action="view-photo" data-src="${escapeHtml(c.photo_path)}" aria-label="View full size photo">
+             <img src="${escapeHtml(c.photo_path)}" alt="Thumbnail for ${escapeHtml(c.title)}" loading="lazy"
+                  class="w-20 h-20 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition" />
+           </button>`
+        : '<span class="text-xs text-slate-400">No photo</span>';
+      const options = STATUSES.map((s) =>
+        `<option value="${s}" ${s === c.status ? 'selected' : ''}>${s}</option>`).join('');
+
+      return `
+        <tr id="row-${c.id}" data-id="${c.id}" class="align-top hover:bg-slate-50">
+          <td class="px-4 py-4">
+            <p class="font-semibold">${escapeHtml(c.reporter_name)}</p>
+            <p class="text-xs text-slate-500">${escapeHtml(c.reporter_role)}</p>
+            <p class="text-xs text-slate-400 mt-2">#${c.id} &middot; ${escapeHtml(formatDate(c.created_at))}</p>
+          </td>
+          <td class="px-4 py-4">
+            <p class="text-slate-700">📍 ${escapeHtml(c.department_location)}</p>
+            <span class="inline-block mt-2 text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-800">${escapeHtml(c.category)}</span>
+          </td>
+          <td class="px-4 py-4 max-w-xs">
+            <div class="flex items-start gap-2 flex-wrap">
+              <p class="font-semibold">${escapeHtml(c.title)}</p>
+              <span data-role="status-badge" class="text-xs font-semibold px-2.5 py-0.5 rounded-full border ${statusClass}">${escapeHtml(c.status)}</span>
+            </div>
+            <p class="text-slate-600 mt-1 whitespace-pre-line break-words">${escapeHtml(c.description)}</p>
+          </td>
+          <td class="px-4 py-4">${photoHtml}</td>
+          <td class="px-4 py-4">
+            <label class="block text-xs font-medium text-slate-500 mb-1" for="status-${c.id}">Status</label>
+            <select id="status-${c.id}" data-field="status"
+                    class="w-full border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              ${options}
+            </select>
+            <label class="block text-xs font-medium text-slate-500 mt-3 mb-1" for="note-${c.id}">Maintenance note</label>
+            <textarea id="note-${c.id}" data-field="admin_note" rows="2" maxlength="500"
+                      placeholder="e.g., Electrician assigned for 2 PM"
+                      class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">${escapeHtml(c.admin_note || '')}</textarea>
+            <div class="flex gap-2 mt-3">
+              <button type="button" data-action="update"
+                      class="flex-1 bg-indigo-600 text-white font-semibold text-sm px-3 py-1.5 rounded-lg hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed">
+                Update
+              </button>
+              <button type="button" data-action="delete"
+                      class="bg-white text-red-600 border border-red-300 font-semibold text-sm px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed">
+                Delete
+              </button>
+            </div>
+          </td>
+        </tr>`;
+    }
+
+    function renderList() {
+      tbody.innerHTML = allComplaints.filter(matchesFilters).map(renderRow).join('');
+      updateTableState();
+    }
+
+    // ----- Data loading -----
+    async function loadComplaints() {
+      tableState.textContent = 'Loading complaints...';
+      tableState.classList.remove('hidden');
+      refreshBtn.disabled = true;
+      try {
+        const data = await apiRequest('/api/complaints');
+        allComplaints = Array.isArray(data) ? data : [];
+        updateCounts();
+        renderList();
+      } catch (err) {
+        tbody.innerHTML = '';
+        tableState.textContent = err.message || 'Network error while loading complaints.';
+        tableState.classList.remove('hidden');
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    }
+
+    // ----- Actions -----
+    async function handleUpdate(row, button) {
+      const id = Number(row.dataset.id);
+      const status = row.querySelector('[data-field="status"]').value;
+      const adminNote = row.querySelector('[data-field="admin_note"]').value.trim();
+
+      button.disabled = true;
+      const originalLabel = button.textContent;
+      button.textContent = 'Saving...';
+
+      try {
+        const updated = await apiRequest(`/api/complaints/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status, admin_note: adminNote })
+        });
+
+        const index = allComplaints.findIndex((c) => c.id === id);
+        if (index !== -1) allComplaints[index] = updated;
+        updateCounts();
+
+        if (matchesFilters(updated)) {
+          row.outerHTML = renderRow(updated);
+        } else {
+          row.remove();
+        }
+        updateTableState();
+        showToast(`Complaint #${id} updated.`, 'success');
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+        showToast(err.message || 'Could not update complaint.', 'error');
+      }
+    }
+
+    async function handleDelete(row, button) {
+      const id = Number(row.dataset.id);
+      if (!confirm(`Delete complaint #${id}? This cannot be undone.`)) return;
+
+      button.disabled = true;
+      try {
+        await apiRequest(`/api/complaints/${id}`, { method: 'DELETE' });
+        allComplaints = allComplaints.filter((c) => c.id !== id);
+        updateCounts();
+        row.remove();
+        updateTableState();
+        showToast(`Complaint #${id} deleted.`, 'success');
+      } catch (err) {
+        button.disabled = false;
+        showToast(err.message || 'Could not delete complaint.', 'error');
+      }
+    }
+
+    // ----- Image modal -----
+    function openModal(src) {
+      modalImg.src = src;
+      modalLink.href = src;
+      imageModal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      imageModal.classList.add('hidden');
+      modalImg.removeAttribute('src');
+    }
+
+    // ----- Events -----
+    tbody.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-action]');
+      if (!button) return;
+      const row = button.closest('tr');
+      const action = button.dataset.action;
+
+      if (action === 'view-photo') openModal(button.dataset.src);
+      else if (action === 'update' && row) handleUpdate(row, button);
+      else if (action === 'delete' && row) handleDelete(row, button);
+    });
+
+    imageModal.addEventListener('click', (event) => {
+      if (event.target === imageModal) closeModal();
+    });
+    closeModalBtn.addEventListener('click', closeModal);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !imageModal.classList.contains('hidden')) closeModal();
+    });
+
+    filterStatus.addEventListener('change', renderList);
+    filterCategory.addEventListener('change', renderList);
+    clearFiltersBtn.addEventListener('click', () => {
+      filterStatus.value = '';
+      filterCategory.value = '';
+      renderList();
+    });
+    refreshBtn.addEventListener('click', loadComplaints);
+
+    loadComplaints();
+  </script>
+</body>
+</html>
