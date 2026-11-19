@@ -17,6 +17,7 @@ const MIME_TO_EXT = {
   'image/webp': '.webp',
 };
 
+
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // ---------- Database ----------
